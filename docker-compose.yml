@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  database:
+    image: mysql:8.4
+    container_name: traccar-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: traccar
+      MYSQL_USER: traccar
+      MYSQL_PASSWORD: traccar123
+    volumes:
+      - traccar_data:/var/lib/mysql
+    networks:
+      - traccar-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  traccar:
+    image: traccar/traccar:latest
+    container_name: traccar-server
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      DATABASE_DRIVER: com.mysql.cj.jdbc.Driver
+      DATABASE_URL: >-
+        jdbc:mysql://database:3306/traccar
+        ?zeroDateTimeBehavior=round
+        &serverTimezone=UTC
+        &allowPublicKeyRetrieval=true
+        &useSSL=false
+        &allowMultiQueries=true
+        &autoReconnect=true
+        &useUnicode=yes
+        &characterEncoding=UTF-8
+        &sessionVariables=sql_mode=''
+      DATABASE_USER: traccar
+      DATABASE_PASSWORD: traccar123
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/api/health"]
+      interval: 2m
+      timeout: 5s
+      start_period: 1h
+      retries: 3
+    ports:
+      - "8082:8082"  # Web interface
+      - "5010-5060:5010-5060"  # GPS tracking ports
+    volumes:
+      - traccar_logs:/opt/traccar/logs
+    networks:
+      - traccar-network
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: traccar-autoheal
+    restart: always
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: all
+      AUTOHEAL_INTERVAL: 60
+      AUTOHEAL_START_PERIOD: 3600
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traccar-network
+
+volumes:
+  traccar_data:
+    driver: local
+  traccar_logs:
+    driver: local
+
+networks:
+  traccar-network:
+    driver: bridge
