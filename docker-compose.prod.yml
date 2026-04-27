@@ -61,7 +61,8 @@ services:
       retries: 3
     ports:
       - "8082:8082"  # Web interface
-      - "5010-5060:5010-5060"  # GPS tracking ports
+      # - "5010-5060:5010-5060"  
+      - "5100-5150:5100-5150"  # GPS tracking ports
     volumes:
       - traccar_logs:/opt/traccar/logs
       - traccar_conf:/opt/traccar/conf
